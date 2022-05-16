@@ -5,6 +5,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.support.rowset.SqlRowSet;
 
 import javax.sql.DataSource;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -18,7 +19,53 @@ public class JdbcSiteDao implements SiteDao {
 
     @Override
     public List<Site> getSitesThatAllowRVs(int parkId) {
-        return new ArrayList<>();
+        List<Site> sites = new ArrayList<>();
+        String sql = "SELECT p.park_id, s.site_id, s.campground_id, s.site_number, s.max_occupancy, s.accessible, s.max_rv_length, s.utilities " +
+                "FROM site s " +
+                "JOIN campground c ON c.campground_id = s.campground_id " +
+                "JOIN park p ON p.park_id = c.park_id " +
+                "WHERE p.park_id = ? AND s.max_rv_length > 0";
+        SqlRowSet results = jdbcTemplate.queryForRowSet(sql, parkId);
+        while(results.next()){
+            Site site = mapRowToSite(results);
+            sites.add(site);
+        }
+        return sites;
+    }
+
+    @Override
+    public List<Site> getAvailableSites(int parkId){
+        List<Site> sites = new ArrayList<>();
+        String sql = "SELECT s.site_id, s.campground_id, s.site_number, s.max_occupancy, s.accessible, s.max_rv_length, s.utilities " +
+                "FROM site s " +
+                "LEFT JOIN reservation r ON r.site_id = s.site_id " +
+                "JOIN campground c ON c.campground_id = s.campground_id " +
+                "JOIN park p ON p.park_id = c.park_id " +
+                "WHERE p.park_id = ? AND r.reservation_id IS NULL";
+        SqlRowSet results = jdbcTemplate.queryForRowSet(sql, parkId);
+        while(results.next()){
+            Site site = mapRowToSite(results);
+            sites.add(site);
+        }
+        return sites;
+    }
+
+    @Override
+    public List<Site> getAvailableSitesForDates(int parkId, LocalDate startDate, LocalDate endDate){
+        List<Site> sites = new ArrayList<>();
+        String sql = "SELECT s.site_id, s.campground_id, s.site_number, s.max_occupancy, s.accessible, s.max_rv_length, s.utilities " +
+                "FROM site s " +
+                "LEFT JOIN reservation r ON r.site_id = s.site_id " +
+                "JOIN campground c ON c.campground_id = s.campground_id " +
+                "JOIN park p ON p.park_id = c.park_id " +
+                "WHERE p.park_id = ? AND " +
+                "(r.from_date BETWEEN ? AND ? IS NULL OR r.to_date BETWEEN ? AND ? IS NULL)";
+        SqlRowSet results = jdbcTemplate.queryForRowSet(sql, parkId, startDate, endDate, startDate, endDate);
+        while(results.next()){
+            Site site = mapRowToSite(results);
+            sites.add(site);
+        }
+        return sites;
     }
 
     private Site mapRowToSite(SqlRowSet results) {
